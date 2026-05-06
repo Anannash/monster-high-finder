@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './config/superbaseClient';
+import { getPattern } from './utils/patterns';
 
 function App() {
   const [characters,setCharacters] = useState([])
@@ -16,13 +17,18 @@ function App() {
     }
     fetchCharacters()
   }, [])
-
+//Render characters with patterns (It's a simple example)
   return (
     <>
-      <div>
-      <h1>Monster High Finder</h1>
-      {characters.map(c => (
-        <p key={c.id}>{c.name}</p>
+        <div>
+      {characters.map(char => (
+        <div key={char.name} style={{
+          ...getPattern(char.pattern, char.primary_color, char.secondary_color),
+          height: '100px',
+          marginBottom: '10px'
+        }}>
+          <p style={{color: 'white', padding: '10px'}}>{char.name}</p>
+        </div>
       ))}
     </div>
     </>
