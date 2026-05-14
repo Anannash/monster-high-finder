@@ -1,5 +1,6 @@
 const supbase = require('../config/supbase');
 const {validatorURL} = require('../services/validator')
+const {ConditionEnum, CurrencyEnum, MarketplaceEnum} = require('../utils/Enums');
 
 //Retrieve all approved and non-expired listings with their associated links and character information
 const getListings = async (req, res) => {
@@ -33,7 +34,51 @@ const getListings = async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+//Retrieve all listings based on character, collection, and generation filters with their associated links and character information
 
+const getListingsFilters = async (req, res) => {
+    try {
+        const { idCharacter, idCollection, generation } = req.query;
+        // Build the query with the necessary filters
+        let query =  supbase.from('listings')
+            .select(`
+            *, 
+                listing_links(*), 
+                listing_characters(
+                    condition,
+                    character_collections(
+                        characters(
+                            name
+                        ),
+                        collections(
+                            name
+                        )
+                    )
+                )
+            `)
+            .eq('approved', true)// verify if the listing is approved
+            .or('expires_at.is.null,expires_at.gt.now()')//verify if the listing is not expired
+            .order('created_at', { ascending: false })
+            // Apply filters based on the presence of query parameters
+            if(idCharacter)query = query.eq("id", idCharacter);
+            
+            if (idCollection) query = query.eq("collection", idCollection);
+
+            if (generation) query = query.eq("generation", generation);
+        // Execute the query and handle the response
+        const { data, error } = await query;
+        // Handle any errors that occur during the query execution
+        if (error) {
+            throw error;
+        }
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching listings:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+//Create a new listing with validation, expiration handling, and associated links and character information
 const createListing = async (req, res) => {
     try {
         // Get today's date and set the time to the start of the day
@@ -79,7 +124,7 @@ const createListing = async (req, res) => {
                 title,
                 description,
                 price,
-                currency,
+                currency: CurrencyEnum[currency] || 'USD',
                 expires_at: expiresAtDate.toISOString(), // Store the expiration date in ISO format
                 image_url,
             }).select().single();
@@ -91,7 +136,7 @@ const createListing = async (req, res) => {
         // Prepare the links to be inserted into the database
         const linksToInsert = urls.map((url, index) => ({
             url,
-            marketplace: marketplaces[index] || 'Unknown',
+            marketplace: MarketplaceEnum[marketplaces[index]] || 'Unknown',
             listing_id: listingId,
         }));
 
@@ -108,7 +153,7 @@ const createListing = async (req, res) => {
             .insert(
                 characters.map((character) => ({
                     listing_id: listingId,
-                    condition: character.condition,
+                    condition: ConditionEnum[character.condition],
                     character_collection_id: character.id_collection,
                 }))
             );
@@ -121,4 +166,5 @@ const createListing = async (req, res) => {
     }
 }
 
-module.exports = { getListings, createListing }
+
+module.exports = { getListings, createListing, getListingsFilters };

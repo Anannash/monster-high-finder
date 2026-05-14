@@ -1,9 +1,0 @@
-{
-  "dependencies": {
-    "@supabase/supabase-js": "^2.105.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.2.4",
-    "tailwindcss": "^4.2.4"
-  }
-}
