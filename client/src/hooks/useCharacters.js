@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import supabase from "../../../server/src/config/supbase";
+import { supabase } from "../config/supabaseClient";
 
 const useCharacters = () => {
     
