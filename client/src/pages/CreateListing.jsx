@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { z } from "zod";
 import useDolls from "../hooks/useDolls";
 import useListings from "../hooks/useListings";
@@ -9,20 +9,56 @@ import {
   GenerationEnum,
 } from "../utils/Enums";
 
+/**
+ * FEATURE: Create New Listings
+ *
+ * Multi-step or structured form submission containing general listing details,
+ * multiple marketplace links, and individual doll item specifications.
+ *
+ * Form Structure:
+ * - Listing Name (string)
+ * - Description (string)
+ * - Pricing Block [Total Price, Currency]
+ * - Marketplace URLs (array, multi-input *)
+ * - Photos (array)
+ *
+ * Sub-Form: Info Dolls (array, multi-input *)
+ * - [Doll Name, Generation, Collection, Condition, Price]
+ */
 const CreateListing = () => {
   const useCharactersData = useDolls(); // Custom hook to manage characters data
-
   const { getTypeCollection } = useCharactersData;
   const [collectionsByDoll, setCollectionsByDoll] = useState({});
-
   const [searchByIndex, setSearchByIndex] = useState({});
-  const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [moreLinks, setMoreLinks] = useState([""]);
   const [areMultipack, setAreMultipack] = useState(false);
 
-  //retraive all collection with specific doll's generation
+  const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // State to store all from data for creating a new listing
+  const [formData, setFormData] = useState({
+    //General Info
+    title: "",
+    description: "",
+    price: "",
+    currency: "",
+    image_url: [""],
+    urls: [""], //Marketplaces
+    //Doll INFO
+    characters: [
+      {
+        name: "",
+        condition: "new",
+        id_generation: "",
+        id_collection: "",
+        price: "",
+      },
+    ],
+  });
+
+  //Retrieves a doll collection filtered by a specific generation
   const handleGenerationChange = async (index, e) => {
     const generationId = e.target.value;
 
@@ -44,25 +80,39 @@ const CreateListing = () => {
       name: "",
       generation: "",
       collection: "",
+      id_collection: "",
       condition: "",
       price: "",
-      id_collection: "",
+      currency: "",
     },
   ]);
+  //Retrieves total price by each doll price
+  const totalPrice = useMemo(() => {
+    return formData.characters.reduce((sum, doll) => {
+      const dollPrice = parseFloat(doll.price) || 0;
+      return sum + dollPrice;
+    }, 0);
+  }, [formData.characters]);
 
-  // Function to add a new doll to the same listing
+  /**
+   * Marketplace & Inventory Management
+   * Functions to handle multiple marketplace URLs and items/dolls within a single listing.
+   */
+  // Function to add a new doll
   const addNewDoll = () => {
     setInfoDoll([
       ...infoDoll,
       {
+        name: "",
+        generation: "",
+        collection: "",
+        id_collection: "",
         condition: "",
         price: "",
-        id_collection: "",
-        collection: "",
       },
     ]);
   };
-  // Function to remove a doll from the listing
+  // Function to remove a doll
   const removeDoll = (index) => {
     setInfoDoll(infoDoll.filter((_, i) => i !== index));
   };
@@ -75,35 +125,34 @@ const CreateListing = () => {
     setMoreLinks(moreLinks.filter((_, i) => i !== index));
   };
 
-  const handleImageChange = (index, value) => {
+  /* Useless function
+  /const handleImageChange = (index, value) => {
     const updatedCharacters = [...infoDoll];
 
     updatedCharacters[index].image_url = value;
 
     setInfoDoll(updatedCharacters);
-  };
-
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    price: "",
-    currency: "",
-    image_url: [""],
-    urls: [""],
-    marketplaces: [""],
-    characters: [{ condition: "new", id_collection: "" }],
-  });
+  };*/
 
   return (
     <div>
-      {/* Principal Title */}
+      {/* ========================================== */}
+      {/*                 Title                      */}
+      {/* ========================================== */}
       <div className="flex justify-center shadow-sm items-center h-20 mb-6">
         <h1 className="text-3xl font-bold">Create a new listing</h1>
       </div>
-
+      {/* ========================================== */}
+      {/*                 Form                       */}
+      {/* ========================================== */}
       <form className="max-w-2xl mx-auto p-4 shadow-md rounded-md mb-10">
-        {/* GENERAL INFORMATION */}
+        {/* ========================================== */}
+        {/* SECTION 1: GENERAL LISTING INFO            */}
+        {/* ========================================== */}
         <div className=" flex justify-between">
+          {/* ========================================== */}
+          {/*               Listing Title                */}
+          {/* ========================================== */}
           <div className="relative z-0 w-full mb-5 group">
             <input
               type="text"
@@ -117,6 +166,9 @@ const CreateListing = () => {
               Tittle:
             </label>
           </div>
+          {/* ========================================== */}
+          {/*               Multipack USELESS?                */}
+          {/* ========================================== */}
           <div className="flex items-center space-x-2">
             <label className="text-sm text-body p-2">Multipack:</label>
             <input
@@ -128,6 +180,9 @@ const CreateListing = () => {
             />
           </div>
         </div>
+        {/* ========================================== */}
+        {/*            Listing Descriptions            */}
+        {/* ========================================== */}
         <div className="relative z-0 w-full mb-5 group">
           <textarea
             type="text"
@@ -141,10 +196,13 @@ const CreateListing = () => {
             Description:
           </label>
         </div>
-        {/* BUTTONS TO ADD OR REMOVE LINKS */}
+        {/* ========================================== */}
+        {/*        Btns to add or remove links         */}
+        {/* ========================================== */}
         {moreLinks.map((newLink, index) => (
           <div key={index}>
             <div className="flex justify-end">
+              {/* --------------   +    ----------------- */}
               {index === moreLinks.length - 1 && (
                 <button type="button" onClick={addNewLink}>
                   <svg
@@ -173,7 +231,7 @@ const CreateListing = () => {
                   </svg>{" "}
                 </button>
               )}
-
+              {/*---------------   -  ------------------- */}
               {index > 0 && (
                 <button type="button" onClick={() => removeLink(index)}>
                   <svg
@@ -200,6 +258,9 @@ const CreateListing = () => {
                 </button>
               )}
             </div>
+            {/* ========================================== */}
+            {/*               Marketplace urls             */}
+            {/* ========================================== */}
             <div className="relative z-0 w-full mb-5 group">
               <input
                 type="text"
@@ -215,7 +276,9 @@ const CreateListing = () => {
             </div>
           </div>
         ))}
-        {/* IMAGE URL */}
+        {/* ========================================== */}
+        {/*               Listing Photos               */}
+        {/* ========================================== */}
         <div className="relative z-0 w-full mb-5 group">
           <button
             type="button"
@@ -226,8 +289,9 @@ const CreateListing = () => {
           </button>
         </div>
         <h2 className="font-bold italic">Doll(s):</h2>
-
-        {/*----------------------- INFORMATION X DOLL -----------------------*/}
+        {/* ========================================== */}
+        {/* SECTION 2: DOLL INFO            */}
+        {/* ========================================== */}
         {infoDoll.map((newDoll, index) => {
           //Function to filter characters based on search input
           const filteredCharacters = useCharactersData.characters.filter(
@@ -237,11 +301,16 @@ const CreateListing = () => {
                 .includes((searchByIndex[index] || "").toLowerCase()),
           );
           const collectionsForThisDoll = collectionsByDoll[index] || [];
-
+          /* ========================================== */
+          /*               Forms part2                  */
+          /* ========================================== */
           return (
             <section key={index} className="shadow-md p-4 rounded-md mb-6 ">
-              {/* BUTTONS TO ADD OR REMOVE DOLLS */}
+              {/* ========================================== */}
+              {/*        Btns to add or remove dolls         */}
+              {/* ========================================== */}
               <div className="flex justify-end">
+                {/* --------------   +    ----------------- */}
                 {index === infoDoll.length - 1 && (
                   <button type="button" onClick={addNewDoll}>
                     <svg
@@ -274,7 +343,7 @@ const CreateListing = () => {
                     </svg>
                   </button>
                 )}
-
+                {/* --------------   -    ----------------- */}
                 {index > 0 && (
                   <button type="button" onClick={() => removeDoll(index)}>
                     <svg
@@ -309,7 +378,9 @@ const CreateListing = () => {
                   </button>
                 )}
               </div>
-              {/** Dropdown de personajes filtrados por el input de character */}
+              {/* ========================================== */}
+              {/*                 Doll Name                  */}
+              {/* ========================================== */}
               <div className="relative  w-full mb-5 group">
                 <input
                   type="text"
@@ -331,7 +402,7 @@ const CreateListing = () => {
                   placeholder=" "
                   required
                 />
-                {/** Dropdown de personajes filtrados por el input de character */}
+                {/* Search Input: Triggers a filtered dropdown list of dolls as the user types*/}
                 {searchByIndex && (
                   <div className="absolute bg-white border rounded-md shadow-md w-full max-h-40 overflow-y-auto z-50">
                     {filteredCharacters.map((character) => (
@@ -340,9 +411,7 @@ const CreateListing = () => {
                         className="p-2  hover:bg-gray-100 cursor-pointer"
                         onClick={() => {
                           const updatedCharacters = [...infoDoll];
-
                           updatedCharacters[index].character = character.name;
-
                           setInfoDoll(updatedCharacters);
 
                           setSearchByIndex("");
@@ -359,6 +428,9 @@ const CreateListing = () => {
                 </label>
               </div>
               <div className="grid md:grid-cols-2 md:gap-6">
+                {/* ========================================== */}
+                {/*              Doll Generation               */}
+                {/* ========================================== */}
                 <div className="relative z-0 w-full mb-5 group">
                   <select
                     id={`gen-${index}`}
@@ -382,7 +454,9 @@ const CreateListing = () => {
                     Generation:
                   </label>
                 </div>
-
+                {/* ========================================== */}
+                {/*              Doll Collection               */}
+                {/* ========================================== */}
                 <div className="relative z-0 w-full mb-5 group">
                   <select
                     id={`collection-${index}`}
@@ -406,13 +480,13 @@ const CreateListing = () => {
                       </option>
                     ))}
                   </select>
-
-                  {/**USAR UN SELECT */}
                   <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
                     Collection:
                   </label>
                 </div>
-
+                {/* ========================================== */}
+                {/*                 Doll price                  */}
+                {/* ========================================== */}
                 <div className="relative z-0 w-full mb-5 group">
                   <input
                     type="number"
@@ -432,6 +506,9 @@ const CreateListing = () => {
                     Price:
                   </label>
                 </div>
+                {/* ========================================== */}
+                {/*                 Doll currency              */}
+                {/* ========================================== */}
                 <div className="relative z-0 w-full mb-5 group">
                   <select
                     id={`currency-${index}`}
@@ -452,7 +529,9 @@ const CreateListing = () => {
                     Currency:
                   </label>
                 </div>
-
+                {/* ========================================== */}
+                {/*              Doll condition                */}
+                {/* ========================================== */}
                 <div className="relative z-0 w-full mb-5 group">
                   <select
                     id={`condition-${index}`}
@@ -463,7 +542,6 @@ const CreateListing = () => {
                     <option value="" disabled selected>
                       Select condition
                     </option>
-
                     {Object.values(ConditionEnum).map((condition) => (
                       <option key={condition} value={condition}>
                         {condition}
