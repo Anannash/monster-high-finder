@@ -11,6 +11,8 @@ const getListings = async (req, res) => {
                 listing_links(*), 
                 listing_characters(
                     condition,
+                    price,
+                    currency,
                     character_collections(
                         characters(
                             name
@@ -19,7 +21,8 @@ const getListings = async (req, res) => {
                             name
                         )
                     )
-                )
+                ),
+                image_urls(*)
             `)
         .eq('approved', true)// verify if the listing is approved
         .or('expires_at.is.null,expires_at.gt.now()')//verify if the listing is not expired
@@ -46,6 +49,8 @@ const getListingsFilters = async (req, res) => {
                 listing_links(*), 
                 listing_characters(
                     condition,
+                    price,
+                    currency,
                     character_collections(
                         characters(
                             name
@@ -54,7 +59,8 @@ const getListingsFilters = async (req, res) => {
                             name
                         )
                     )
-                )
+                ),
+                image_urls(*)
             `)
             .eq('approved', true)// verify if the listing is approved
             .or('expires_at.is.null,expires_at.gt.now()')//verify if the listing is not expired
@@ -87,9 +93,17 @@ const createListing = async (req, res) => {
 
         // Extract listing details from the request body
         const { 
-            title, description, price, currency, image_url,  
-            characters, condition, id_collection,
-            urls, marketplaces
+            title, 
+            description, 
+            price, // array of prices for each  doll
+            totalPrice, // total price of the listing
+            currency, 
+            image_url,  // array of image URLs for the listing
+            characters,  // array of id_characters
+            condition,  // array of conditions for each doll
+            id_collection,
+            urls,       // array of URLs for each marketplace
+            marketplaces
         } = req.body;
 
         //validate urls
@@ -123,7 +137,7 @@ const createListing = async (req, res) => {
             .insert({
                 title,
                 description,
-                price,
+                price : parseFloat(totalPrice),
                 currency: CurrencyEnum[currency] || 'USD',
                 expires_at: expiresAtDate.toISOString(), // Store the expiration date in ISO format
                 image_url,
@@ -154,10 +168,24 @@ const createListing = async (req, res) => {
                 characters.map((character) => ({
                     listing_id: listingId,
                     condition: ConditionEnum[character.condition],
+                    price: parseFloat(character.price),
+                    currency: CurrencyEnum[character.currency] || 'USD',
                     character_collection_id: character.id_collection,
                 }))
             );
         if (listingCharactersError) throw listingCharactersError;
+
+        // Insert the associated image_urls into the database
+        const {data: listingImagesData, error: listingImagesError} = await supbase
+            .from('image_urls')
+            .insert(
+                image_url.map((url) => ({
+                    url,
+                    listing_id: listingId,
+                }))
+            );
+        if (listingImagesError) throw listingImagesError;
+
         res.status(201).json({ message: 'Publicación creada', id: listingId })
 
     } catch (error) {

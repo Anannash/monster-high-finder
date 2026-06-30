@@ -23,3 +23,12 @@ const MarketplaceEnum ={
 }
 
 export { MarketplaceEnum };
+
+const GenerationEnum ={
+  1: 'G1',
+  2: 'G2',
+  3: 'G3',
+  4: 'Special Edition',
+}
+
+export { GenerationEnum };

@@ -1,19 +1,49 @@
-import { useState } from "react";
-import { set, url, z } from "zod";
-import useCharacters from "../hooks/useCharacters";
+import { useState, useEffect } from "react";
+import { z } from "zod";
+import useDolls from "../hooks/useDolls";
 import useListings from "../hooks/useListings";
-import { ConditionEnum, CurrencyEnum, MarketplaceEnum } from "../utils/Enums";
+import {
+  ConditionEnum,
+  CurrencyEnum,
+  MarketplaceEnum,
+  GenerationEnum,
+} from "../utils/Enums";
 
 const CreateListing = () => {
-  const useCharactersData = useCharacters();
+  const useCharactersData = useDolls(); // Custom hook to manage characters data
+
+  const { getTypeCollection } = useCharactersData;
+  const [collectionsByDoll, setCollectionsByDoll] = useState({});
+
+  const [searchByIndex, setSearchByIndex] = useState({});
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [moreLinks, setMoreLinks] = useState([""]);
+  const [areMultipack, setAreMultipack] = useState(false);
+
+  //retraive all collection with specific doll's generation
+  const handleGenerationChange = async (index, e) => {
+    const generationId = e.target.value;
+
+    const updated = [...infoDoll];
+    updated[index].generation = generationId;
+    setInfoDoll(updated);
+
+    const data = await getTypeCollection(generationId);
+
+    setCollectionsByDoll((prev) => ({
+      ...prev,
+      [index]: data,
+    }));
+  };
+
   // State to manage the list of dolls in the listing
   const [infoDoll, setInfoDoll] = useState([
     {
-      image_url: "",
+      name: "",
+      generation: "",
+      collection: "",
       condition: "",
       price: "",
       id_collection: "",
@@ -25,10 +55,10 @@ const CreateListing = () => {
     setInfoDoll([
       ...infoDoll,
       {
-        image_url: "",
         condition: "",
         price: "",
         id_collection: "",
+        collection: "",
       },
     ]);
   };
@@ -73,18 +103,30 @@ const CreateListing = () => {
 
       <form className="max-w-2xl mx-auto p-4 shadow-md rounded-md mb-10">
         {/* GENERAL INFORMATION */}
-        <div className="relative z-0 w-full mb-5 group">
-          <input
-            type="text"
-            id="title"
-            name="title"
-            className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-            placeholder=" "
-            required
-          />
-          <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-            Tittle:
-          </label>
+        <div className=" flex justify-between">
+          <div className="relative z-0 w-full mb-5 group">
+            <input
+              type="text"
+              id="title"
+              name="title"
+              className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+              placeholder=" "
+              required
+            />
+            <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+              Tittle:
+            </label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <label className="text-sm text-body p-2">Multipack:</label>
+            <input
+              type="checkbox"
+              id="multipack"
+              checked={areMultipack}
+              onChange={() => setAreMultipack(!areMultipack)}
+              className="w-4 h-4 text-brand bg-gray-100 border-gray-300 focus:ring-brand peer"
+            />
+          </div>
         </div>
         <div className="relative z-0 w-full mb-5 group">
           <textarea
@@ -173,206 +215,269 @@ const CreateListing = () => {
             </div>
           </div>
         ))}
+        {/* IMAGE URL */}
+        <div className="relative z-0 w-full mb-5 group">
+          <button
+            type="button"
+            value={infoDoll[0].image_url}
+            className="bg-black text-white py-2 px-4 rounded-md hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-light"
+          >
+            Upload Image
+          </button>
+        </div>
         <h2 className="font-bold italic">Doll(s):</h2>
-        {/* INFORMATION X DOLL*/}
-        {infoDoll.map((newDoll, index) => (
-          <section key={index} className="shadow-md p-4 rounded-md mb-6 ">
-            {/* BUTTONS TO ADD OR REMOVE DOLLS */}
-            <div className="flex justify-end">
-              {index === infoDoll.length - 1 && (
-                <button type="button" onClick={addNewDoll}>
-                  <svg
-                    width="30px"
-                    height="30px"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
-                    <g
-                      id="SVGRepo_tracerCarrier"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    ></g>
-                    <g id="SVGRepo_iconCarrier">
-                      {" "}
-                      <g id="Edit / Add_Row">
+
+        {/*----------------------- INFORMATION X DOLL -----------------------*/}
+        {infoDoll.map((newDoll, index) => {
+          //Function to filter characters based on search input
+          const filteredCharacters = useCharactersData.characters.filter(
+            (character) =>
+              character.name
+                .toLowerCase()
+                .includes((searchByIndex[index] || "").toLowerCase()),
+          );
+          const collectionsForThisDoll = collectionsByDoll[index] || [];
+
+          return (
+            <section key={index} className="shadow-md p-4 rounded-md mb-6 ">
+              {/* BUTTONS TO ADD OR REMOVE DOLLS */}
+              <div className="flex justify-end">
+                {index === infoDoll.length - 1 && (
+                  <button type="button" onClick={addNewDoll}>
+                    <svg
+                      width="30px"
+                      height="30px"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
+                      <g
+                        id="SVGRepo_tracerCarrier"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      ></g>
+                      <g id="SVGRepo_iconCarrier">
                         {" "}
-                        <path
-                          id="Vector"
-                          d="M3 14V15C3 16.1046 3.89543 17 5 17L19 17C20.1046 17 21 16.1046 21 15L21 13C21 11.8954 20.1046 11 19 11H13M10 8H7M7 8H4M7 8V5M7 8V11"
-                          stroke="#96509f"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        ></path>{" "}
-                      </g>{" "}
-                    </g>
-                  </svg>
-                </button>
-              )}
+                        <g id="Edit / Add_Row">
+                          {" "}
+                          <path
+                            id="Vector"
+                            d="M3 14V15C3 16.1046 3.89543 17 5 17L19 17C20.1046 17 21 16.1046 21 15L21 13C21 11.8954 20.1046 11 19 11H13M10 8H7M7 8H4M7 8V5M7 8V11"
+                            stroke="#96509f"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          ></path>{" "}
+                        </g>{" "}
+                      </g>
+                    </svg>
+                  </button>
+                )}
 
-              {index > 0 && (
-                <button type="button" onClick={() => removeDoll(index)}>
-                  <svg
-                    width="30px"
-                    height="30px"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    stroke="#ff5c95"
-                  >
-                    <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
-                    <g
-                      id="SVGRepo_tracerCarrier"
-                      stroke-linecap="round"
-                      strokeLinejoin="round"
-                    ></g>
-                    <g id="SVGRepo_iconCarrier">
-                      {" "}
-                      <g id="Edit / Delete_Row">
+                {index > 0 && (
+                  <button type="button" onClick={() => removeDoll(index)}>
+                    <svg
+                      width="30px"
+                      height="30px"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      stroke="#ff5c95"
+                    >
+                      <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
+                      <g
+                        id="SVGRepo_tracerCarrier"
+                        stroke-linecap="round"
+                        strokeLinejoin="round"
+                      ></g>
+                      <g id="SVGRepo_iconCarrier">
                         {" "}
-                        <path
-                          id="Vector"
-                          d="M14 16H20M21 10V9C21 7.89543 20.1046 7 19 7H5C3.89543 7 3 7.89543 3 9V11C3 12.1046 3.89543 13 5 13H11"
-                          stroke="#ff5c95"
-                          strokeWidth="2"
-                          stroke-linecap="round"
-                          strokeLinejoin="round"
-                        ></path>{" "}
-                      </g>{" "}
-                    </g>
-                  </svg>
-                </button>
-              )}
-            </div>
-            <div className="relative z-0 w-full mb-5 group">
-              <input
-                type="text"
-                id={`character-${index}`}
-                name="character"
-                className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                placeholder=" "
-                required
-              />
-              {/**USAR UN SELECT */}
-              <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                Character Name:
-              </label>
-            </div>
-            <div className="grid md:grid-cols-2 md:gap-6">
-              <div className="relative z-0 w-full mb-5 group">
+                        <g id="Edit / Delete_Row">
+                          {" "}
+                          <path
+                            id="Vector"
+                            d="M14 16H20M21 10V9C21 7.89543 20.1046 7 19 7H5C3.89543 7 3 7.89543 3 9V11C3 12.1046 3.89543 13 5 13H11"
+                            stroke="#ff5c95"
+                            strokeWidth="2"
+                            stroke-linecap="round"
+                            strokeLinejoin="round"
+                          ></path>{" "}
+                        </g>{" "}
+                      </g>
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {/** Dropdown de personajes filtrados por el input de character */}
+              <div className="relative  w-full mb-5 group">
                 <input
                   type="text"
-                  id={`gen-${index}`}
-                  name="gen"
-                  className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                  placeholder=" "
-                  required
-                />
-                {/**USAR UN SELECT */}
-                <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Generation:
-                </label>
-              </div>
-              <div className="relative z-0 w-full mb-5 group">
-                <input
-                  type="text"
-                  id={`collection-${index}`}
-                  name="collection"
-                  className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                  placeholder=" "
-                  required
-                />
-                {/**USAR UN SELECT */}
-                <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Collection:
-                </label>
-              </div>
+                  id={`character-${index}`}
+                  value={newDoll.character}
+                  onChange={(e) => {
+                    const updatedCharacters = [...infoDoll];
+                    // Update the character name in the infoDoll state
+                    updatedCharacters[index].character = e.target.value;
 
-              <div className="relative z-0 w-full mb-5 group">
-                <input
-                  type="number"
-                  id={`price-${index}`}
-                  name="price"
-                  value={newDoll.price}
+                    setInfoDoll(updatedCharacters);
+                    setSearchByIndex((prev) => ({
+                      ...prev,
+                      [index]: e.target.value,
+                    }));
+                  }}
+                  name="character"
                   className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
                   placeholder=" "
                   required
                 />
-                <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Price:
-                </label>
-              </div>
-              <div className="relative z-0 w-full mb-5 group">
-                <select
-                  id={`currency-${index}`}
-                  name="currency"
-                  className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                  required
-                >
-                  <option value="" disabled selected>
-                    Select currency
-                  </option>
-                  {Object.values(CurrencyEnum).map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-                <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Currency:
-                </label>
-              </div>
-              <div className="relative z-0 w-full mb-5 group">
-                <input
-                  type="text"
-                  id={`image_url-${index}`}
-                  name="image_url"
-                  value={newDoll.image_url}
-                  onChange={(e) => handleImageChange(index, e.target.value)}
-                  className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                  placeholder=" "
-                  required
-                />
-                <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Image URL:
-                </label>
-              </div>
-              <div className="relative z-0 w-full mb-5 group">
-                <select
-                  id={`condition-${index}`}
-                  name="condition"
-                  className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
-                  required
-                >
-                  <option value="" disabled selected>
-                    Select condition
-                  </option>
+                {/** Dropdown de personajes filtrados por el input de character */}
+                {searchByIndex && (
+                  <div className="absolute bg-white border rounded-md shadow-md w-full max-h-40 overflow-y-auto z-50">
+                    {filteredCharacters.map((character) => (
+                      <div
+                        key={character.id}
+                        className="p-2  hover:bg-gray-100 cursor-pointer"
+                        onClick={() => {
+                          const updatedCharacters = [...infoDoll];
 
-                  {Object.values(ConditionEnum).map((condition) => (
-                    <option key={condition} value={condition}>
-                      {condition}
-                    </option>
-                  ))}
-                </select>
+                          updatedCharacters[index].character = character.name;
+
+                          setInfoDoll(updatedCharacters);
+
+                          setSearchByIndex("");
+                        }}
+                      >
+                        {character.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/**GEN */}
                 <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
-                  Condition:
+                  Character Name:
                 </label>
               </div>
-            </div>
-            <div className="flex flex-col items-center w-full mb-5">
-              <label className="text-sm text-body mb-2">Image Preview:</label>
-              {newDoll.image_url && (
-                <img
-                  src={newDoll.image_url}
-                  alt="preview"
-                  className="w-48 h-48  object-cover rounded-md"
-                />
-              )}
-            </div>
-          </section>
-        ))}
+              <div className="grid md:grid-cols-2 md:gap-6">
+                <div className="relative z-0 w-full mb-5 group">
+                  <select
+                    id={`gen-${index}`}
+                    name="gen"
+                    value={newDoll.generation}
+                    onChange={(e) => handleGenerationChange(index, e)}
+                    className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+                    required
+                  >
+                    <option value="" disabled selected>
+                      Select generation
+                    </option>
+
+                    {Object.entries(GenerationEnum).map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+                    Generation:
+                  </label>
+                </div>
+
+                <div className="relative z-0 w-full mb-5 group">
+                  <select
+                    id={`collection-${index}`}
+                    name="collection"
+                    value={newDoll.collection}
+                    onChange={(e) => {
+                      const updated = [...infoDoll];
+                      updated[index].collection = e.target.value;
+                      updated[index].id_collection = e.target.value;
+                      setInfoDoll(updated);
+                    }}
+                    className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+                    required
+                  >
+                    <option value="" disabled selected>
+                      Select collection
+                    </option>
+                    {collectionsForThisDoll.map((collection) => (
+                      <option key={collection.id} value={collection.id}>
+                        {collection.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/**USAR UN SELECT */}
+                  <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+                    Collection:
+                  </label>
+                </div>
+
+                <div className="relative z-0 w-full mb-5 group">
+                  <input
+                    type="number"
+                    id={`price-${index}`}
+                    name="price"
+                    value={newDoll.price}
+                    onChange={(e) => {
+                      const updated = [...infoDoll];
+                      updated[index].price = e.target.value;
+                      setInfoDoll(updated);
+                    }}
+                    className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+                    placeholder=" "
+                    required
+                  />
+                  <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+                    Price:
+                  </label>
+                </div>
+                <div className="relative z-0 w-full mb-5 group">
+                  <select
+                    id={`currency-${index}`}
+                    name="currency"
+                    className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+                    required
+                  >
+                    <option value="" disabled selected>
+                      Select currency
+                    </option>
+                    {Object.values(CurrencyEnum).map((currency) => (
+                      <option key={currency} value={currency}>
+                        {currency}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+                    Currency:
+                  </label>
+                </div>
+
+                <div className="relative z-0 w-full mb-5 group">
+                  <select
+                    id={`condition-${index}`}
+                    name="condition"
+                    className="block py-2.5 px-0 w-full text-sm text-heading bg-transparent border-0 border-b-2 border-default-medium appearance-none focus:outline-none focus:ring-0 focus:border-brand peer"
+                    required
+                  >
+                    <option value="" disabled selected>
+                      Select condition
+                    </option>
+
+                    {Object.values(ConditionEnum).map((condition) => (
+                      <option key={condition} value={condition}>
+                        {condition}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="absolute text-sm text-body duration-300 transform -translate-y-6 scale-75 top-3 -z-10 origin-[0] peer-focus:start-0 peer-focus:text-fg-brand peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-6 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto">
+                    Condition:
+                  </label>
+                </div>
+              </div>
+            </section>
+          );
+        })}
         <div className="flex justify-center">
           <button
             type="submit"
